@@ -1,4 +1,4 @@
-	;; Write by: Nicol Sebastian
+	;; Writen by: Nicol Sebastian
 	;; Last change: 20.11.2020
 
 SECTION .data           ; Section containing initialised data
@@ -9,7 +9,7 @@ SECTION .bss            ; Section containing uninitialized data
 	OutBuf:		resb OutBufLen 	; reserve 4 bytes for output
 
 	InBufLen:	equ 3		
-	InBuf:		resb InBufLen 	; reserve 4 bytes for input
+	InBuf:		resb InBufLen 	; reserve 3 bytes for input
 
 
 	
@@ -44,31 +44,31 @@ retclear:
 	
 	;; masking the bits and saving input to the 4 registers
 	mov r8, [InBuf]			; moving  input to to r8
-	shr r8, 2			; shift because binary is little endian (1,2,4,8,16,32,64,128)
-	and r8, 0x00003f		; masking to have first 6 bits
+	shr r8, 2				; shift because binary is little endian (1,2,4,8,16,32,64,128) and we only want first 6 bits
+	and r8, 0x00003f		; masking to have first 6 bits (just incase there was other in r8)
 
 	
-	mov r9b, byte [InBuf]		; moving input to r9
-	shl r9, 8			; making room for next byte
-	mov r9b, byte [InBuf+1]		; adding next byte
-	shr r9, 4			; moving next 6 bits to first 6 bits position
-	and r9, 0x00003f		; masking to have only first 6 bits
+	mov r9b, byte [InBuf]		; moving 1st byte to r9b
+	shl r9, 8					; making room for next byte
+	mov r9b, byte [InBuf+1]		; adding next byte to r9b
+	shr r9, 4					; moving next 6 bits to first 6 bits position
+	and r9, 0x00003f			; masking to have only first 6 bits (incase other input was in r9)
 
 
 	cmp r15, 1			; check if there was only 1 byte as input
 	je move				; jump to writing to output buffer
 	
-	mov r10b, byte[InBuf+1]		; moving input to r10
-	shl r10, 8			; making space for next byte
+	mov r10b, byte[InBuf+1]		; moving input to r10b
+	shl r10, 8					; making space for next byte
 	mov r10b, byte[InBuf+2]		; adding next byte
-	shr r10, 6			; moving next 6 bits to first 6 bits position
-	and r10, 0x00003f		; masking to have only first 6 bits
+	shr r10, 6					; moving next 6 bits to first 6 bits position
+	and r10, 0x00003f			; masking to have only first 6 bits (incase other input was in r10)
 
 	cmp r15, 2			; check if there was only 2 byte as input
 	je move				; jump to writting to output buffer
 
 	mov r11b, byte [InBuf+2]	; moving input to r10
-	and r11, 0x00003f		; masking to have first 6 bits
+	and r11, 0x00003f			; masking to have first 6 bits (incase other input was in r11)
 
 
 	;; and look up corresponing base64 char and writing to output buffer
@@ -79,20 +79,20 @@ move:
 	mov r9b, byte [Base64Table+r9] 	; geting the corresponsing base 64 char
 	mov byte [OutBuf+1], r9b      	; writing it to output buffer
 
-	cmp r15, 1
-	je addtwoequals
+	cmp r15, 1						; check if there was only 1 byte instead of 3 for input
+	je addtwoequals					; if true jump to addtwoequals to add == for last two output bytes
 rettwo:	
-	cmp r15, 1
-	je gowrite
+	cmp r15, 1						; check again if input was only 1 byte
+	je gowrite						; if true jump to go write
 	
 	mov r10b, byte [Base64Table+r10]	; geting the corresponsing base 64 char
 	mov byte [OutBuf+2], r10b      		; writing it to output buffer
 	
-	cmp r15, 2
-	je addoneequals
+	cmp r15, 2						; check if there were two bytes instead of 3 as input
+	je addoneequals					; if true jump to addtwoequals to add an = operator for the last byte
 retone:	
-	cmp r15, 2
-	je gowrite
+	cmp r15, 2						; check again if input was only 2 bytes
+	je gowrite						; if true jump to gowrite
 	
 	mov r11b, byte [Base64Table+r11]	; geting the corresponsing base 64 char
 	mov byte [OutBuf+3], r11b	      	; writing it to output buffer
@@ -117,34 +117,34 @@ read:
 	mov rdi, 0                      ; file descriptor: stdin
 	mov rsi, InBuf                  ; destination buffer
 	mov rdx, InBufLen               ; maximum # of bytes to read
-	syscall				; Make kernal call
+	syscall							; Make kernal call
 	ret
 
 write:
 	mov rax, 1                      ; sys_write
 	mov rdi, 1                      ; file descriptor: stdout
 	mov rsi, OutBuf                 ; source buffer
-	mov rdx, OutBufLen        	; # of bytes to write
-	syscall				; make kernal call
-	ret				; return to code right after the call
+	mov rdx, OutBufLen        		; # of bytes to write
+	syscall							; make kernal call
+	ret								; return to code right after the call
 
-addoneequals: 				; you only jump here if 1 byte is missing
-	mov byte [OutBuf+3], '='	; add one "=" sign to the last byte in the output buffer
-	jmp retone			; jump to retone label
+addoneequals: 						; you only jump here if 1 byte is missing
+	mov byte [OutBuf+3], '='		; add one "=" sign to the last byte in the output buffer
+	jmp retone						; jump to retone label
 	
-addtwoequals:				; you only jump here
-	mov byte [OutBuf+2], '='	; add equals sign to second to last byte position of output
-	mov byte [OutBuf+3], '='	; add equals sign to last byte position of output
-	jmp rettwo			; jump to rettwo label
+addtwoequals:						; you only jump here if 2 bytes are missing
+	mov byte [OutBuf+2], '='		; add equals sign to second to last byte position of output
+	mov byte [OutBuf+3], '='		; add equals sign to last byte position of output
+	jmp rettwo						; jump to rettwo label
 
 ;;; if there are not 3 bytes as input, fill up the input buffer bytes
 ;;; to make sure there is no overflow from previous input
 clear1input:
-	push rcx			; saving rcx just incase
-	xor rcx, rcx			; making rcx (and by that cl) = 0	 
-	mov byte [InBuf+2], cl 		; fill up the last bye with 0
-	pop rcx				; restoring rcx just incase
-	jmp retclear			; jump to "retclear"
+	push rcx						; saving rcx just incase
+	xor rcx, rcx					; making rcx (and by that cl) = 0	 
+	mov byte [InBuf+2], cl 			; fill up the last bye with 0
+	pop rcx							; restoring rcx just incase
+	jmp retclear					; jump to "retclear"
 
 clear2input:
 	push rcx			; saving rcx just in case
